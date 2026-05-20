@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Comment Analysis Dashboard — Adair Homes</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --rev: #2563EB;
+      --rev-light: #DBEAFE;
+      --int: #D97706;
+      --int-light: #FEF3C7;
+      --bg: #F1F5F9;
+      --surface: #FFFFFF;
+      --border: #E2E8F0;
+      --text: #0F172A;
+      --muted: #64748B;
+      --accent: #0F172A;
+      --pattern: #EF4444;
+      --pattern-light: #FEE2E2;
+    }
+
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ─── HEADER ─── */
+    .header { background: var(--accent); color: #fff; padding: 20px 32px 0; }
+    .header-top { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+    .header-top h1 { font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em; }
+    .brand { font-size: 0.85rem; color: #94A3B8; }
+    .brand span { color: #CBD5E1; }
+
+    .stats-strip { display: flex; gap: 28px; flex-wrap: wrap; padding-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    .stat { text-align: center; }
+    .stat-num { font-size: 1.6rem; font-weight: 800; line-height: 1; color: #fff; }
+    .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: #94A3B8; margin-top: 2px; }
+    .stat-num.rev { color: #93C5FD; }
+    .stat-num.int { color: #FCD34D; }
+
+    /* ─── TABS ─── */
+    .tabs { display: flex; gap: 0; background: var(--accent); padding: 0 32px; border-bottom: none; }
+    .tab-btn {
+      padding: 12px 18px; font-size: 0.82rem; font-weight: 500; color: #94A3B8;
+      background: transparent; border: none; border-bottom: 3px solid transparent;
+      cursor: pointer; transition: all 0.15s; white-space: nowrap;
+    }
+    .tab-btn:hover { color: #E2E8F0; }
+    .tab-btn.active { color: #fff; border-bottom-color: #3B82F6; }
+    .tab-btn.warn { color: #FCA5A5; }
+    .tab-btn.warn.active { color: #FCA5A5; border-bottom-color: #EF4444; }
+
+    /* ─── MAIN CONTENT ─── */
+    .main { padding: 28px 32px; max-width: 1400px; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ─── CALLOUT ─── */
+    .callout { background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 10px; padding: 14px 18px; margin-bottom: 24px; font-size: 0.82rem; color: #0C4A6E; line-height: 1.55; }
+    .callout strong { color: #0369A1; }
+    .callout.warn { background: #FFF7ED; border-color: #FED7AA; color: #7C2D12; }
+    .callout.warn strong { color: #EA580C; }
+
+    /* ─── GRID ─── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+    /* ─── CARD ─── */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+    .card-title { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); margin-bottom: 4px; }
+    .card-subtitle { font-size: 0.75rem; color: var(--muted); margin-bottom: 16px; }
+
+    /* ─── CONTROLS ─── */
+    .controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+    .controls label { font-size: 0.78rem; font-weight: 600; color: var(--muted); }
+    .controls select, .controls input {
+      padding: 7px 11px; font-size: 0.8rem; border: 1px solid var(--border);
+      border-radius: 8px; background: var(--surface); color: var(--text);
+      outline: none; cursor: pointer;
+    }
+    .controls select:focus, .controls input:focus { border-color: #3B82F6; box-shadow: 0 0 0 2px #DBEAFE; }
+    .controls .search { flex: 1; min-width: 160px; max-width: 280px; }
+    .sep { color: var(--border); }
+
+    /* ─── LEGEND ─── */
+    .legend { display: flex; gap: 16px; margin-bottom: 16px; }
+    .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: var(--muted); }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ─── THEME BARS ─── */
+    .theme-list { display: flex; flex-direction: column; gap: 6px; }
+    .theme-row { display: grid; grid-template-columns: 180px 1fr 90px; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #F1F5F9; }
+    .theme-row:last-child { border-bottom: none; }
+    .theme-name { font-size: 0.8rem; font-weight: 500; color: var(--text); }
+    .theme-bar-wrap { position: relative; height: 20px; background: #F1F5F9; border-radius: 4px; overflow: hidden; }
+    .theme-bar-rev { position: absolute; left: 0; top: 0; height: 100%; background: var(--rev); opacity: 0.85; border-radius: 4px 0 0 4px; transition: width 0.3s; }
+    .theme-bar-int { position: absolute; top: 0; height: 100%; background: var(--int); opacity: 0.85; transition: all 0.3s; }
+    .theme-meta { font-size: 0.73rem; color: var(--muted); text-align: right; line-height: 1.4; }
+    .theme-meta strong { color: var(--text); }
+
+    /* ─── PROJECT TABLE ─── */
+    .project-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .project-table th { text-align: left; padding: 9px 12px; font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); border-bottom: 2px solid var(--border); }
+    .project-table td { padding: 9px 12px; border-bottom: 1px solid #F1F5F9; vertical-align: middle; }
+    .project-table tr:hover td { background: #F8FAFC; }
+    .proj-name { font-weight: 500; }
+    .type-badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 0.68rem; font-weight: 600; }
+    .type-badge.rev { background: var(--rev-light); color: var(--rev); }
+    .type-badge.int { background: var(--int-light); color: var(--int); }
+    .mini-bar-wrap { display: flex; height: 10px; border-radius: 3px; overflow: hidden; min-width: 80px; }
+    .mini-bar-rev { background: var(--rev); height: 100%; }
+    .mini-bar-int { background: var(--int); height: 100%; }
+
+    /* ─── PATTERN CARDS ─── */
+    .pattern-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .pattern-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+    .pattern-card.high { border-color: #FCA5A5; background: #FFF5F5; }
+    .pattern-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px; }
+    .pattern-name { font-size: 0.88rem; font-weight: 700; color: var(--text); }
+    .pattern-count { font-size: 0.78rem; color: var(--muted); }
+    .pattern-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 700; background: var(--pattern-light); color: var(--pattern); margin-bottom: 10px; }
+    .pattern-projects { display: flex; flex-direction: column; gap: 4px; }
+    .pattern-project { font-size: 0.75rem; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+    .pattern-project::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+    .pattern-bar { display: flex; height: 4px; border-radius: 2px; overflow: hidden; margin-top: 10px; }
+    .pattern-bar-rev { background: var(--rev); }
+    .pattern-bar-int { background: var(--int); }
+    .pattern-split { font-size: 0.7rem; color: var(--muted); margin-top: 6px; display: flex; gap: 10px; }
+    .pattern-split span { display: flex; align-items: center; gap: 4px; }
+    .dot-rev { width: 7px; height: 7px; border-radius: 50%; background: var(--rev); }
+    .dot-int { width: 7px; height: 7px; border-radius: 50%; background: var(--int); }
+
+    /* ─── CHART CONTAINERS ─── */
+    .chart-wrap { position: relative; }
+
+    /* ─── HIDDEN ─── */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <h1>Comment Analysis Dashboard</h1>
+    <span class="brand">Adair Homes <span>·</span> PermitFlow</span>
+  </div>
+  <div class="stats-strip">
+    <div class="stat">
+      <div class="stat-num">274</div>
+      <div class="stat-label">comments</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num">38</div>
+      <div class="stat-label">projects</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num rev">172</div>
+      <div class="stat-label">Revisions</div>
+    </div>
+    <div class="stat">
+      <div class="stat-num int">102</div>
+      <div class="stat-label">Intakes</div>
+    </div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="overview">Overview</button>
+  <button class="tab-btn" data-tab="themes">By Theme</button>
+  <button class="tab-btn" data-tab="projects">By Project</button>
+  <button class="tab-btn warn" data-tab="patterns">⚠ Repeat Patterns</button>
+  <button class="tab-btn" data-tab="common">Most Common Comments</button>
+</div>
+
+<div class="main">
+
+  <!-- ─── OVERVIEW ─── -->
+  <div class="tab-content active" id="tab-overview">
+    <div class="callout">
+      <strong>How to read this dashboard:</strong> Every count shown is tied to both a comment total <em>and</em> a project count (denominator).
+      For example, "34 Architecture/Drawings comments across 14 of 38 projects" tells a very different story than just "34."
+      Use the tabs above to drill into themes, individual projects, or recurring patterns.
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Comment themes</div>
+        <div class="card-subtitle">count vs. project spread &nbsp;·&nbsp; bigger bubble = higher avg per project</div>
+        <div class="chart-wrap" style="height:340px">
+          <canvas id="bubbleChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">Revision vs. Intake split by theme</div>
+        <div class="card-subtitle">all 15 themes, stacked by type</div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--rev)"></div> Revision</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--int)"></div> Intake</div>
+        </div>
+        <div class="chart-wrap" style="height:340px">
+          <canvas id="overviewBarChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── BY THEME ─── -->
+  <div class="tab-content" id="tab-themes">
+    <div class="callout">
+      <strong>Reading the numbers:</strong> "n comments across x/38 projects" gives the true denominator.
+      "Avg per project" = total comments ÷ projects with that theme.
+      A high avg means concentrated pain; a high project spread means a systemic issue.
+    </div>
+    <div class="controls">
+      <label>Sort</label>
+      <select id="themeSort">
+        <option value="total">Total comments ↓</option>
+        <option value="projects">Projects affected ↓</option>
+        <option value="avg">Avg per project ↓</option>
+      </select>
+      <span class="sep">|</span>
+      <label>Type</label>
+      <select id="themeType">
+        <option value="all">All types</option>
+        <option value="rev">Revision only</option>
+        <option value="int">Intake only</option>
+      </select>
+      <span class="sep">|</span>
+      <input class="search" id="themeSearch" placeholder="Search themes…" type="text" />
+    </div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--rev)"></div> Revision</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--int)"></div> Intake</div>
+    </div>
+    <div class="card">
+      <div class="card-title">All 15 themes — comments per project (denominator-adjusted)</div>
+      <div class="card-subtitle">bars show comments ÷ projects affected</div>
+      <div class="theme-list" id="themeList"></div>
+    </div>
+  </div>
+
+  <!-- ─── BY PROJECT ─── -->
+  <div class="tab-content" id="tab-projects">
+    <div class="controls">
+      <label>Sort</label>
+      <select id="projSort">
+        <option value="total">Most comments ↓</option>
+        <option value="name">Name A–Z</option>
+      </select>
+      <span class="sep">|</span>
+      <input class="search" id="projSearch" placeholder="Search projects…" type="text" />
+    </div>
+    <div class="card" style="overflow-x:auto">
+      <table class="project-table" id="projectTable">
+        <thead>
+          <tr>
+            <th>Project</th>
+            <th>Total</th>
+            <th>Split (Rev / Int)</th>
+            <th style="min-width:120px">Bar</th>
+            <th>Themes present</th>
+          </tr>
+        </thead>
+        <tbody id="projectTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ─── REPEAT PATTERNS ─── -->
+  <div class="tab-content" id="tab-patterns">
+    <div class="callout warn">
+      <strong>Repeat patterns</strong> are comment themes appearing in multiple projects — indicating systemic preparation gaps.
+      These are not one-off issues; they're process failures that compound across the portfolio.
+    </div>
+    <div class="pattern-grid" id="patternGrid"></div>
+  </div>
+
+  <!-- ─── MOST COMMON COMMENTS ─── -->
+  <div class="tab-content" id="tab-common">
+    <div class="callout">
+      <strong>Most common comment categories</strong> are derived from the actual comment text across all 274 non-blank comments.
+      These 10 categories account for <strong>186 of 274 comments (68%)</strong> — the recurring issues most worth addressing systematically.
+    </div>
+    <div id="commonGrid" style="display:flex;flex-direction:column;gap:14px;"></div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+// ─── DATA ───────────────────────────────────────────────────────────────────
+
+const THEMES = [
+  { theme: "Architecture/Drawings", total: 44, revision: 27, intake: 17, projects: ["AUAU - 719 - Chhour","CRCR - 212 - Tishmack","MVMV  - 521 - Gerhardt","MVMV - 687 - Petree","NBNB  - 386 - Taylor","NBNB - 1030 - Taylor","SISI - 723 - Kupers","SISI - 785 - Harty","TUTU - 714 - Hernandez","TUTU - 834 - Sullivan","WOWA  - 135 - Havenson","WOWA - 836 - Croswaite","WOWA - 928 - Rolfs","YAYA - 675 - Pyeatt"] },
+  { theme: "Site Plan", total: 34, revision: 17, intake: 17, projects: ["AUAU  - 596 - Buesseler","AUAU - 719 - Chhour","AUAU - 824 - Krause","IFIF - 750 - Coleman","MVMV  - 521 - Gerhardt","MVMV - 687 - Petree","NBNB  - 386 - Taylor","NBNB - 1030 - Taylor","NBNB - 31879 - Kim","SISI - 723 - Kupers","SISI - 730 - Mahaney","SISI - 785 - Harty","TUTU - 714 - Hernandez","WOWA  - 135 - Havenson","YAYA  - 600 - Douglass","YAYA - 675 - Pyeatt"] },
+  { theme: "Grading/Drainage", total: 30, revision: 25, intake: 5, projects: ["AUAU  - 596 - Buesseler","AUAU - 719 - Chhour","MVMV  - 521 - Gerhardt","NBNB  - 251010 - Amiani","NBNB - 1030 - Taylor","SISI - 723 - Kupers","SISI - 730 - Mahaney","SISI - 742 - Carlson","SISI - 785 - Harty"] },
+  { theme: "Zoning/Land Use", total: 23, revision: 14, intake: 9, projects: ["AUAU  - 596 - Buesseler","AUAU - 719 - Chhour","AUAU - 769 - Farley","AUAU - 824 - Krause","AUAU - 910 - Brady","MEME - 889 - Weingartner","MVMV - 687 - Petree","NBNB  - 386 - Taylor","SISI - 785 - Harty","SISI - 892 - Nolan","TUTU - 714 - Hernandez","WOWA  - 135 - Havenson","WOWA - 698 - Crocker","WOWA - 836 - Croswaite","YAYA - 675 - Pyeatt"] },
+  { theme: "Structural", total: 21, revision: 20, intake: 1, projects: ["AUAU - 719 - Chhour","NBNB - 1030 - Taylor","SISI - 785 - Harty","TUTU - 714 - Hernandez","TUTU - 834 - Sullivan","YAYA - 675 - Pyeatt","[Pilot] NBNB  - 349 - Schoot"] },
+  { theme: "Plumbing", total: 21, revision: 11, intake: 10, projects: ["AUAU - 769 - Farley","IFIF - 750 - Coleman","MVMV - 687 - Petree","NBNB - 1030 - Taylor","NBNB - 31879 - Kim","SISI - 730 - Mahaney","SISI - 892 - Nolan","TUTU - 714 - Hernandez","WOWO - 828 - Abram","YAYA - 675 - Pyeatt"] },
+  { theme: "Septic/Health", total: 19, revision: 11, intake: 8, projects: ["AUAU - 671 - Kilborn","CRCR - 212 - Tishmack","NBNB - 862 - Henderson","SISI - 723 - Kupers","SISI - 785 - Harty","SISI - 873 - Nachel","SISI - 892 - Nolan","TUTU - 714 - Hernandez","WOWO  - 507 - Ray","WOWO - 828 - Abram","YAYA  - 600 - Douglass","YAYA - 675 - Pyeatt"] },
+  { theme: "Missing Info/Application", total: 17, revision: 4, intake: 13, projects: ["AUAU - 824 - Krause","MEME - 915 - Boucher","MVMV - 687 - Petree","OLOL - 901 - Nguyen","RERE - 809 - Bush","SISI - 723 - Kupers","SISI - 892 - Nolan","SPID - 691 - Little","WOWA - 698 - Crocker","WOWO  - 507 - Ray","YAYA  - 600 - Douglass","YAYA - 675 - Pyeatt","[Pilot] OLOL  - 392 - Martin"] },
+  { theme: "Fire Safety", total: 16, revision: 10, intake: 6, projects: ["AUAU  - 596 - Buesseler","AUAU - 719 - Chhour","MVMV - 687 - Petree","WOWO  - 507 - Ray","WOWO - 828 - Abram","YAYA  - 600 - Douglass"] },
+  { theme: "Energy Compliance", total: 13, revision: 13, intake: 0, projects: ["AUAU - 719 - Chhour","NBNB - 1030 - Taylor","SISI - 785 - Harty","TUTU - 714 - Hernandez","WOWA - 698 - Crocker","YAYA  - 600 - Douglass"] },
+  { theme: "Square Footage/Calculations", total: 13, revision: 4, intake: 9, projects: ["IFIF - 750 - Coleman","MVMV - 687 - Petree","NBNB  - 386 - Taylor","SISI - 730 - Mahaney","SISI - 785 - Harty","TUTU - 834 - Sullivan","WOWA  - 135 - Havenson","[Pilot] NBNB  - 349 - Schoot"] },
+  { theme: "Mechanical/HVAC", total: 8, revision: 7, intake: 1, projects: ["AUAU - 719 - Chhour","MVMV - 687 - Petree","NBNB - 1030 - Taylor","SISI - 785 - Harty","TUTU - 714 - Hernandez","WOWA - 698 - Crocker"] },
+  { theme: "Electrical", total: 6, revision: 3, intake: 3, projects: ["MVMV - 687 - Petree","TUTU - 714 - Hernandez"] },
+  { theme: "Setbacks/Easements", total: 5, revision: 4, intake: 1, projects: ["AUAU  - 596 - Buesseler","AUAU - 719 - Chhour","SPID - 691 - Little","WOWA  - 135 - Havenson"] },
+  { theme: "Geotechnical", total: 4, revision: 2, intake: 2, projects: ["AUAU - 719 - Chhour","NBNB  - 251010 - Amiani","SISI - 723 - Kupers","TUTU - 714 - Hernandez"] }
+];
+
+const PROJECTS = [
+  { name: "MVMV - 687 - Petree",        total: 45 },
+  { name: "AUAU - 719 - Chhour",        total: 31 },
+  { name: "NBNB - 1030 - Taylor",       total: 26 },
+  { name: "TUTU - 714 - Hernandez",     total: 23 },
+  { name: "SISI - 785 - Harty",         total: 19 },
+  { name: "NBNB  - 386 - Taylor",       total: 18 },
+  { name: "SISI - 723 - Kupers",        total: 18 },
+  { name: "YAYA  - 600 - Douglass",     total: 16 },
+  { name: "SISI - 730 - Mahaney",       total: 12 },
+  { name: "YAYA - 675 - Pyeatt",        total: 10 },
+  { name: "WOWA  - 135 - Havenson",     total: 10 },
+  { name: "MVMV  - 521 - Gerhardt",     total: 9  },
+  { name: "WOWO  - 507 - Ray",          total: 8  },
+  { name: "AUAU - 824 - Krause",        total: 7  },
+  { name: "SISI - 892 - Nolan",         total: 6  },
+  { name: "AUAU  - 596 - Buesseler",    total: 6  },
+  { name: "SISI - 873 - Nachel",        total: 6  },
+  { name: "IFIF - 750 - Coleman",       total: 5  },
+  { name: "WOWA - 698 - Crocker",       total: 5  },
+  { name: "WOWA - 836 - Croswaite",     total: 4  },
+  { name: "TUTU - 834 - Sullivan",      total: 4  },
+  { name: "WOWO - 828 - Abram",         total: 3  },
+  { name: "OLOL - 901 - Nguyen",        total: 3  },
+  { name: "[Pilot] OLOL  - 392 - Martin", total: 3 },
+  { name: "MEME - 889 - Weingartner",   total: 2  },
+  { name: "[Pilot] NBNB  - 349 - Schoot", total: 2 },
+  { name: "CRCR - 212 - Tishmack",      total: 2  },
+  { name: "MEME - 915 - Boucher",       total: 2  },
+  { name: "SPID - 691 - Little",        total: 2  },
+  { name: "NBNB  - 251010 - Amiani",    total: 2  },
+  { name: "NBNB - 31879 - Kim",         total: 2  },
+  { name: "AUAU - 769 - Farley",        total: 2  },
+  { name: "SISI - 742 - Carlson",       total: 1  },
+  { name: "AUAU - 910 - Brady",         total: 1  },
+  { name: "RERE - 809 - Bush",          total: 1  },
+  { name: "WOWA - 928 - Rolfs",         total: 1  },
+  { name: "AUAU - 671 - Kilborn",       total: 1  },
+  { name: "NBNB - 862 - Henderson",     total: 1  }
+];
+
+// Build project → themes map
+const projThemes = {};
+THEMES.forEach(t => {
+  t.projects.forEach(p => {
+    if (!projThemes[p]) projThemes[p] = [];
+    projThemes[p].push(t.theme);
+  });
+});
+
+// ─── TAB SWITCHING ──────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// ─── CHART.JS DEFAULTS ──────────────────────────────────────────────────────
+Chart.defaults.font.family = "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+Chart.defaults.color = '#64748B';
+
+// ─── BUBBLE CHART ───────────────────────────────────────────────────────────
+(function () {
+  const max = Math.max(...THEMES.map(t => t.total / t.projects.length));
+  const data = THEMES.map(t => ({
+    x: t.total,
+    y: t.projects.length,
+    r: Math.max(6, Math.sqrt(t.total / t.projects.length / max) * 28),
+    label: t.theme,
+    rev: t.revision,
+    int: t.intake,
+  }));
+
+  const colors = [
+    '#2563EB','#7C3AED','#0891B2','#059669','#D97706',
+    '#DC2626','#9333EA','#0284C7','#16A34A','#CA8A04',
+    '#E11D48','#6366F1','#0EA5E9','#10B981','#F59E0B'
+  ];
+
+  new Chart(document.getElementById('bubbleChart'), {
+    type: 'bubble',
+    data: {
+      datasets: data.map((d, i) => ({
+        label: d.label,
+        data: [d],
+        backgroundColor: colors[i % colors.length] + 'BB',
+        borderColor: colors[i % colors.length],
+        borderWidth: 1.5,
+      }))
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const d = ctx.raw;
+              return [`${d.label}`, `${d.x} comments across ${d.y}/38 projects`, `Rev: ${d.rev}  ·  Int: ${d.int}`];
+            }
+          }
+        }
+      },
+      scales: {
+        x: { title: { display: true, text: 'Total comments', font: { size: 11 } }, min: 0 },
+        y: { title: { display: true, text: 'Projects affected', font: { size: 11 } }, min: 0, max: 20, ticks: { stepSize: 4 } }
+      }
+    }
+  });
+})();
+
+// ─── OVERVIEW BAR CHART ─────────────────────────────────────────────────────
+(function () {
+  const sorted = [...THEMES].sort((a, b) => b.total - a.total);
+  new Chart(document.getElementById('overviewBarChart'), {
+    type: 'bar',
+    data: {
+      labels: sorted.map(t => t.theme.length > 22 ? t.theme.slice(0, 21) + '…' : t.theme),
+      datasets: [
+        { label: 'Revision', data: sorted.map(t => t.revision), backgroundColor: '#2563EB', borderRadius: 3, borderSkipped: false },
+        { label: 'Intake',   data: sorted.map(t => t.intake),   backgroundColor: '#D97706', borderRadius: 3, borderSkipped: false },
+      ]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { mode: 'index' } },
+      scales: {
+        x: { stacked: true, grid: { color: '#F1F5F9' } },
+        y: { stacked: true, ticks: { font: { size: 10 } } }
+      }
+    }
+  });
+})();
+
+// ─── THEME LIST ─────────────────────────────────────────────────────────────
+function renderThemeList() {
+  const sortBy = document.getElementById('themeSort').value;
+  const typeFilter = document.getElementById('themeType').value;
+  const search = document.getElementById('themeSearch').value.toLowerCase();
+
+  let data = THEMES.map(t => ({
+    ...t,
+    displayed: typeFilter === 'rev' ? t.revision : typeFilter === 'int' ? t.intake : t.total,
+    avg: t.total / t.projects.length
+  }));
+
+  if (search) data = data.filter(t => t.theme.toLowerCase().includes(search));
+  if (typeFilter !== 'all') data = data.filter(t => t.displayed > 0);
+
+  data.sort((a, b) => {
+    if (sortBy === 'total')    return b.total - a.total;
+    if (sortBy === 'projects') return b.projects.length - a.projects.length;
+    if (sortBy === 'avg')      return b.avg - a.avg;
+    return 0;
+  });
+
+  const maxDisplayed = Math.max(...data.map(t => t.displayed), 1);
+  const maxTotal = Math.max(...data.map(t => t.total), 1);
+
+  const container = document.getElementById('themeList');
+  container.innerHTML = '';
+
+  data.forEach(t => {
+    const row = document.createElement('div');
+    row.className = 'theme-row';
+
+    const namePct = (t.total / 38).toFixed(1);
+    const revPct  = Math.round((t.revision / (t.total || 1)) * 100);
+    const intPct  = 100 - revPct;
+    const barWidth = (t.displayed / maxDisplayed * 100).toFixed(1);
+
+    row.innerHTML = `
+      <div class="theme-name">${t.theme}</div>
+      <div class="theme-bar-wrap">
+        <div class="theme-bar-rev" style="width:${(t.revision / maxTotal * 100).toFixed(1)}%"></div>
+        <div class="theme-bar-int" style="left:${(t.revision / maxTotal * 100).toFixed(1)}%; width:${(t.intake / maxTotal * 100).toFixed(1)}%"></div>
+      </div>
+      <div class="theme-meta">
+        <strong>${t.total}</strong> comments<br>
+        ${t.projects.length}/38 projects<br>
+        avg ${t.avg.toFixed(1)}/proj
+      </div>
+    `;
+    container.appendChild(row);
+  });
+
+  if (data.length === 0) {
+    container.innerHTML = '<div style="padding:16px;color:var(--muted);font-size:0.82rem">No themes match your filter.</div>';
+  }
+}
+
+document.getElementById('themeSort').addEventListener('change', renderThemeList);
+document.getElementById('themeType').addEventListener('change', renderThemeList);
+document.getElementById('themeSearch').addEventListener('input', renderThemeList);
+renderThemeList();
+
+// ─── PROJECT TABLE ───────────────────────────────────────────────────────────
+function renderProjects() {
+  const sortBy = document.getElementById('projSort').value;
+  const search = document.getElementById('projSearch').value.toLowerCase();
+
+  let data = PROJECTS.filter(p => !search || p.name.toLowerCase().includes(search));
+
+  data.sort((a, b) => {
+    if (sortBy === 'total') return b.total - a.total;
+    if (sortBy === 'name')  return a.name.localeCompare(b.name);
+    return 0;
+  });
+
+  const maxTotal = Math.max(...PROJECTS.map(p => p.total));
+  const tbody = document.getElementById('projectTableBody');
+  tbody.innerHTML = '';
+
+  data.forEach(p => {
+    const themes = projThemes[p.name] || [];
+    // Estimate R/I from theme presence (weighted by each theme's ratio)
+    let estRev = 0, estInt = 0;
+    THEMES.forEach(t => {
+      if (t.projects.includes(p.name)) {
+        const share = 1 / t.projects.length;
+        estRev += t.revision * share;
+        estInt += t.intake * share;
+      }
+    });
+    const total = estRev + estInt || 1;
+    const revPct = Math.round((estRev / total) * 100);
+
+    const barW = Math.round((p.total / maxTotal) * 100);
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="proj-name">${p.name}</td>
+      <td><strong>${p.total}</strong></td>
+      <td>
+        <span class="type-badge rev">${revPct}% Rev</span>
+        <span class="type-badge int" style="margin-left:4px">${100-revPct}% Int</span>
+      </td>
+      <td>
+        <div class="mini-bar-wrap" style="width:${Math.max(barW, 8)}%">
+          <div class="mini-bar-rev" style="width:${revPct}%"></div>
+          <div class="mini-bar-int" style="width:${100-revPct}%"></div>
+        </div>
+      </td>
+      <td style="font-size:0.72rem;color:var(--muted)">${themes.slice(0,4).join(', ')}${themes.length > 4 ? ` +${themes.length-4} more` : ''}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+document.getElementById('projSort').addEventListener('change', renderProjects);
+document.getElementById('projSearch').addEventListener('input', renderProjects);
+renderProjects();
+
+// ─── REPEAT PATTERNS ─────────────────────────────────────────────────────────
+(function () {
+  const patterns = THEMES.filter(t => t.projects.length >= 4)
+    .sort((a, b) => b.projects.length - a.projects.length);
+
+  const grid = document.getElementById('patternGrid');
+
+  patterns.forEach(t => {
+    const revPct = Math.round((t.revision / (t.total || 1)) * 100);
+    const intPct = 100 - revPct;
+    const isHigh = t.projects.length >= 10;
+
+    const card = document.createElement('div');
+    card.className = 'pattern-card' + (isHigh ? ' high' : '');
+    card.innerHTML = `
+      <div class="pattern-header">
+        <div class="pattern-name">${t.theme}</div>
+        <div class="pattern-count">${t.total} comments</div>
+      </div>
+      <div class="pattern-badge">⚠ ${t.projects.length} of 38 projects</div>
+      <div class="pattern-projects">
+        ${t.projects.slice(0, 6).map(p => `<div class="pattern-project">${p}</div>`).join('')}
+        ${t.projects.length > 6 ? `<div class="pattern-project" style="color:#94A3B8">+${t.projects.length - 6} more projects</div>` : ''}
+      </div>
+      <div class="pattern-bar" style="margin-top:12px; height:6px; border-radius:3px; overflow:hidden; display:flex">
+        <div class="pattern-bar-rev" style="width:${revPct}%"></div>
+        <div class="pattern-bar-int" style="width:${intPct}%"></div>
+      </div>
+      <div class="pattern-split">
+        <span><span class="dot-rev"></span>${t.revision} Revision</span>
+        <span><span class="dot-int"></span>${t.intake} Intake</span>
+        <span style="margin-left:auto">avg ${(t.total / t.projects.length).toFixed(1)}/project</span>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+})();
+
+// ─── MOST COMMON COMMENTS ────────────────────────────────────────────────────
+(function () {
+  const COMMON = [
+    {
+      category: "Site plan missing elements or revisions",
+      count: 38, revision: 24, intake: 14,
+      projects: ["AUAU  - 596 - Buesseler","AUAU - 719 - Chhour","AUAU - 824 - Krause","MVMV  - 521 - Gerhardt","MVMV - 687 - Petree","NBNB  - 386 - Taylor","NBNB - 1030 - Taylor","NBNB - 31879 - Kim","SPID - 691 - Little","TUTU - 714 - Hernandez","WOWA  - 135 - Havenson","WOWA - 928 - Rolfs","WOWO  - 507 - Ray","YAYA  - 600 - Douglass","[Pilot] NBNB  - 349 - Schoot"],
+      example: "Show & label foundation and parcel corner elevations with contours at 2-foot intervals. For large parcels, show the topography within 100 feet…"
+    },
+    {
+      category: "Stormwater/drainage plan corrections needed",
+      count: 32, revision: 24, intake: 8,
+      projects: ["AUAU - 719 - Chhour","IFIF - 750 - Coleman","MVMV  - 521 - Gerhardt","NBNB  - 251010 - Amiani","NBNB  - 386 - Taylor","NBNB - 1030 - Taylor","SISI - 723 - Kupers","SISI - 730 - Mahaney","SISI - 742 - Carlson","SISI - 785 - Harty"],
+      example: "New or modified impervious area of 1,000 SF or greater triggers CWS water quality and hydromodification requirements. A drainage report per R&O 19-5 is required…"
+    },
+    {
+      category: "Septic permit or approval required",
+      count: 25, revision: 17, intake: 8,
+      projects: ["AUAU - 671 - Kilborn","CRCR - 212 - Tishmack","NBNB - 1030 - Taylor","NBNB - 862 - Henderson","SISI - 723 - Kupers","SISI - 785 - Harty","SISI - 873 - Nachel","SISI - 892 - Nolan","TUTU - 714 - Hernandez","WOWO  - 507 - Ray","WOWO - 828 - Abram","YAYA  - 600 - Douglass","YAYA - 675 - Pyeatt"],
+      example: "An application for a new septic permit is needed by the Yakima Health District. This application is needed to move forward with the issuance of the building permit."
+    },
+    {
+      category: "ADU floor plan missing required elements",
+      count: 22, revision: 0, intake: 22,
+      projects: ["MVMV - 687 - Petree"],
+      example: "Need an egress door and it must be swinging (not a slider) and have 32\" clear width."
+    },
+    {
+      category: "Structural calculations missing or inadequate",
+      count: 18, revision: 17, intake: 1,
+      projects: ["AUAU - 719 - Chhour","NBNB - 1030 - Taylor","SISI - 785 - Harty","TUTU - 714 - Hernandez","[Pilot] NBNB  - 349 - Schoot"],
+      example: "Per the structural calculations, it appears that the footing being proposed is inadequate to support the imposed point load from Beam F3. Please revise the plan…"
+    },
+    {
+      category: "Application form missing or incomplete",
+      count: 12, revision: 3, intake: 9,
+      projects: ["AUAU  - 596 - Buesseler","AUAU - 719 - Chhour","AUAU - 824 - Krause","MVMV  - 521 - Gerhardt","MVMV - 687 - Petree","RERE - 809 - Bush","SISI - 723 - Kupers","YAYA  - 600 - Douglass","YAYA - 675 - Pyeatt","[Pilot] OLOL  - 392 - Martin"],
+      example: "Application corrections needed: MISSING ALL INFORMATION. A new Application is needed with dates and signatures that reflect the resubmittal."
+    },
+    {
+      category: "Zoning compliance setbacks/FAR/lot coverage",
+      count: 11, revision: 2, intake: 9,
+      projects: ["AUAU - 719 - Chhour","AUAU - 910 - Brady","MVMV - 687 - Petree","NBNB  - 386 - Taylor","WOWA  - 135 - Havenson"],
+      example: "Please include Floor Area Ratio calculations, Lot Coverage calculations per KZC 115.90, and Average Building Elevation information per KZC 115.59 in the plan set."
+    },
+    {
+      category: "Water/sewer availability or connection missing",
+      count: 11, revision: 8, intake: 3,
+      projects: ["IFIF - 750 - Coleman","SISI - 723 - Kupers","SISI - 730 - Mahaney","SISI - 892 - Nolan","WOWO - 828 - Abram","YAYA - 675 - Pyeatt"],
+      example: "Water Meter pit is not shown. Water Line size needs to be shown as well as sewer line size."
+    },
+    {
+      category: "Energy code compliance items missing",
+      count: 9, revision: 8, intake: 1,
+      projects: ["AUAU - 719 - Chhour","NBNB  - 386 - Taylor","SISI - 785 - Harty","WOWA - 698 - Crocker","YAYA  - 600 - Douglass"],
+      example: "Please specify on the building plans the method and materials used to achieve the required additional 8.0 credits per 2021 WSEC-R Sections R406, R406.3 and Table R406.3."
+    },
+    {
+      category: "Document submittal format/standards errors",
+      count: 8, revision: 3, intake: 5,
+      projects: ["AUAU - 719 - Chhour","MVMV - 687 - Petree","SISI - 723 - Kupers","SISI - 785 - Harty","SISI - 892 - Nolan","TUTU - 714 - Hernandez","WOWA  - 135 - Havenson"],
+      example: "Plans are marked 'NOT FOR CONSTRUCTION' — please provide a clean set of plans."
+    }
+  ];
+
+  const maxCount = COMMON[0].count;
+  const grid = document.getElementById('commonGrid');
+
+  COMMON.forEach((item, idx) => {
+    const revPct = Math.round((item.revision / item.count) * 100);
+    const intPct = 100 - revPct;
+    const barW   = Math.round((item.count / maxCount) * 100);
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.cssText = 'display:grid;grid-template-columns:32px 1fr auto;gap:16px;align-items:start;';
+    card.innerHTML = `
+      <div style="font-size:1.35rem;font-weight:800;color:#CBD5E1;line-height:1;padding-top:2px;">${idx + 1}</div>
+      <div>
+        <div style="font-size:0.92rem;font-weight:700;color:var(--text);margin-bottom:6px;">${item.category}</div>
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px;">
+          ${item.revision > 0 ? `<span class="type-badge rev">${item.revision} Rev</span>` : ''}
+          ${item.intake  > 0 ? `<span class="type-badge int">${item.intake} Int</span>`  : ''}
+          <span style="font-size:0.72rem;color:var(--muted);">${item.projects.length} project${item.projects.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div style="height:8px;border-radius:4px;overflow:hidden;display:flex;width:${barW}%;min-width:24px;max-width:100%;margin-bottom:10px;">
+          <div style="background:var(--rev);width:${revPct}%;height:100%;"></div>
+          <div style="background:var(--int);width:${intPct}%;height:100%;"></div>
+        </div>
+        <div style="font-size:0.75rem;color:var(--muted);font-style:italic;line-height:1.5;border-left:3px solid var(--border);padding-left:10px;margin-bottom:10px;">
+          "${item.example}"
+        </div>
+        <div style="font-size:0.72rem;color:#94A3B8;">
+          ${item.projects.slice(0, 5).join('  ·  ')}${item.projects.length > 5 ? `  <em>+${item.projects.length - 5} more</em>` : ''}
+        </div>
+      </div>
+      <div style="text-align:right;white-space:nowrap;">
+        <div style="font-size:1.75rem;font-weight:800;color:var(--text);line-height:1;">${item.count}</div>
+        <div style="font-size:0.68rem;text-transform:uppercase;letter-spacing:0.07em;color:var(--muted);">comments</div>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+})();
+</script>
+</body>
+</html>
